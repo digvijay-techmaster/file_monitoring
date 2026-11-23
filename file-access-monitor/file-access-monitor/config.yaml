@@ -1,0 +1,69 @@
+# ---------------- File Access Monitor: settings ----------------
+# Paths are relative to this file. You can use folders or single files.
+# Real-system examples:  /etc/passwd   /etc/sudoers   /etc/ssh   /home/you/.ssh   /var/www
+watch_paths:
+  - ./watched
+
+# Protect the monitor itself (its code and this config). Set to false while you are editing the code.
+self_protect: true
+
+# Files matching these patterns are ignored. ('*' also matches '/')
+ignore_patterns:
+  - "*.swp"
+  - "*.swx"
+  - "*~"
+  - "*.tmp"
+  - "*.pyc"
+  - "*/__pycache__/*"
+  - "*/.git/*"
+
+data_dir: ./data            # baseline, logs, key. Never watched.
+max_hash_mb: 200            # files bigger than this are not hashed
+debounce_sec: 0.7           # wait until a file is quiet this long before checking it
+scan_interval_sec: 600      # full re-scan every 10 minutes (the "source of truth")
+
+storage:
+  use_mongo: true           # falls back to files in data/ if MongoDB is not running
+  mongo_uri: "mongodb://localhost:27017"
+  db_name: fam
+  retention_days: 30        # old events delete themselves (MongoDB TTL index)
+
+# "Who did it?" needs Linux auditd. See README, step "auditd".
+audit:
+  enabled: true
+  log_file: /var/log/audit/audit.log
+  key: fam
+
+alerts:
+  min_notify_severity: medium     # low | medium | high | critical  (everything is still stored)
+  cooldown_sec: 30                # same alert on same file: notify only once in this time
+  telegram:                       # better: set env FAM_TELEGRAM_TOKEN and FAM_TELEGRAM_CHAT
+    bot_token: ""
+    chat_id: ""
+  email:
+    enabled: false
+    smtp_host: smtp.gmail.com
+    port: 587
+    user: ""                      # also the "from" address
+    to: ""                        # password: set env FAM_EMAIL_PASSWORD
+
+rules:
+  critical_files:                 # any change here is an alert
+    severity: high
+    items:
+      - {pattern: "*/passwd",          mitre: "T1136.001"}   # create account
+      - {pattern: "*/shadow",          mitre: "T1098"}       # account manipulation
+      - {pattern: "*/sudoers",         mitre: "T1548.003"}   # sudo abuse
+      - {pattern: "*/sudoers.d/*",     mitre: "T1548.003"}
+      - {pattern: "*/authorized_keys", mitre: "T1098.004"}   # ssh backdoor key
+      - {pattern: "*/crontab",         mitre: "T1053.003"}   # scheduled persistence
+      - {pattern: "*/cron.d/*",        mitre: "T1053.003"}
+  log_patterns: ["*.log", "*/var/log/*"]       # deleting or shrinking these = hiding tracks
+  mass_change:                    # ransomware-like behaviour
+    threshold: 50                 # this many different files ...
+    window_sec: 10                # ... within this many seconds
+    cooldown_sec: 60
+  odd_hours:                      # changes at night are suspicious (low severity)
+    enabled: true
+    start: 22                     # 22:00 ...
+    end: 5                        # ... until 05:00

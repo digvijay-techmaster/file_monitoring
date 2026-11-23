@@ -1,0 +1,21 @@
+# systemd service for FAM. Edit the two paths, then:
+#   sudo cp fam.service /etc/systemd/system/fam.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now fam
+#   journalctl -u fam -f
+[Unit]
+Description=File Access Monitor
+After=network.target auditd.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/file-access-monitor
+ExecStart=/opt/file-access-monitor/venv/bin/python main.py watch
+Restart=always
+RestartSec=3
+User=root
+# Hardening: the monitor needs to write only its own data folder
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
